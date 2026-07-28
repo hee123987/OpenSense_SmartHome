@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="ryun의 yellow 스마트홈 복합 제어 대시보드 - ESP32 블루투스 연동">
+  <title>OpenSense SmartHome Dashboard</title>
+  <!-- Google Web Fonts: Hanken Grotesk & Material Symbols Outlined -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=5">
+</head>
+<body>
+
+  <!-- 메인 모바일-퍼스트 앱 프레임 컨테이너 -->
+  <div class="app-container">
+
+    <!-- ==========================================
+         SCREEN 1: HOME DASHBOARD (Primary Status)
+         ========================================== -->
+    <div id="screen-home" class="app-screen active">
+      <!-- 상단 헤더 -->
+      <header class="app-header">
+        <div class="header-logo">
+          <span class="logo-icon">🏠</span>
+          <h1 class="header-title">OpenSense Home</h1>
+        </div>
+        <button class="icon-btn-header" data-nav="settings">
+          <span class="material-symbols-outlined">settings</span>
+        </button>
+      </header>
+
+      <main class="screen-main">
+        <!-- 1. 주변 환경 상태 (Atmospheric State) -->
+        <section class="card env-card">
+          <div class="card-header-row">
+            <span class="card-subtitle">실내 환경 모니터링</span>
+            <div class="status-indicator">
+              <span class="indicator-dot"></span>
+              <span class="indicator-text">쾌적함</span>
+            </div>
+          </div>
+          
+          <div class="env-gauge-layout">
+            <div class="env-gauge-main">
+              <span class="env-gauge-label">실내 온도</span>
+              <div class="env-gauge-val-group">
+                <span id="txt-temp" class="env-gauge-val">--</span><span class="env-gauge-unit">°C</span>
+              </div>
+            </div>
+            
+            <div class="env-gauge-sub">
+              <span class="env-gauge-label">실내 습도</span>
+              <div class="env-gauge-val-group">
+                <span id="txt-humi" class="env-gauge-val">--</span><span class="env-gauge-unit">%</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 공기질 상태 표시 -->
+          <div class="env-air-row mt-4">
+            <span class="env-gauge-label">공기 질 상태</span>
+            <span id="badge-air-main" class="badge bg-green">대기 중</span>
+          </div>
+        </section>
+
+        <!-- 디바이스 가상 화면 (OLED & NeoPixel) -->
+        <section class="card settings-group-card">
+          <div class="system-displays">
+            <!-- OLED 가상 화면 -->
+            <div class="oled-display-wrapper">
+              <div class="oled-screen" id="oled-screen">
+                <div class="oled-icon" id="oled-icon">💤</div>
+                <div class="oled-text" id="oled-status-text">WAITING</div>
+              </div>
+            </div>
+
+            <!-- 네오픽셀 12구 가상 링 -->
+            <div class="neopixel-wrapper">
+              <div class="neopixel-ring" id="neopixel-ring">
+                <!-- JS에서 12개의 LED 도트를 생성함 -->
+              </div>
+            </div>
+          </div>
+
+          <div class="state-summary mt-3">
+            <div class="status-big-badge" id="system-state-badge">
+              <span class="state-label">현재 홈 제어 상태</span>
+              <span class="state-value" id="txt-system-state">대기 상태 (WAITING)</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Primary Actions (기능 제어 그리드) -->
+        <section class="control-grid">
+          <!-- 스마트 창문 조절 카드 -->
+          <div class="grid-card tint-teal" data-nav="window">
+            <div class="grid-icon-wrapper">
+              <span class="material-symbols-outlined text-teal">grid_view</span>
+            </div>
+            <span class="grid-card-title">창문 조절</span>
+          </div>
+
+          <!-- 스마트 창문 닫기 카드 -->
+          <div class="grid-card tint-blue" id="btn-window-close-card">
+            <div class="grid-icon-wrapper">
+              <span class="material-symbols-outlined text-blue">window_sensor</span>
+            </div>
+            <span class="grid-card-title">창문 닫기</span>
+          </div>
+
+          <!-- 음향 제어 카드 (음향 제어 화면으로 이동) -->
+          <div class="grid-card tint-mint" data-nav="sound">
+            <div class="grid-icon-wrapper">
+              <span class="material-symbols-outlined text-mint" id="sound-icon-main">volume_up</span>
+            </div>
+            <span class="grid-card-title" id="txt-sound-main">음향 제어</span>
+          </div>
+
+          <!-- 조명 제어 카드 -->
+          <div class="grid-card tint-yellow" data-nav="light">
+            <div class="grid-icon-wrapper">
+              <span class="material-symbols-outlined text-yellow">lightbulb</span>
+            </div>
+            <span class="grid-card-title">조명 제어</span>
+          </div>
+        </section>
+
+        <!-- 3. 모드 선택 (수동/자동 스위치) -->
+        <section class="mode-section">
+          <h2 class="section-title">모드 선택</h2>
+          <div class="mode-switch-wrapper">
+            <button class="mode-switch-btn active" id="btn-mode-auto-main">자동</button>
+            <button class="mode-switch-btn" id="btn-mode-manual-main">수동</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 2: WINDOW DETAIL (Aperture Adjustment)
+         ========================================== -->
+    <div id="screen-window" class="app-screen">
+      <!-- 헤더 -->
+      <header class="app-header">
+        <button class="icon-btn-header" data-nav="home">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 class="header-title">창문 조절</h1>
+        <button class="icon-btn-header" data-nav="settings">
+          <span class="material-symbols-outlined">settings</span>
+        </button>
+      </header>
+
+      <main class="screen-main">
+        <!-- 1. 실내 환경 상태 -->
+        <section class="window-env-header">
+          <div class="env-header-left">
+            <span class="env-header-label">실내 환경 상태</span>
+            <h2 class="env-header-title">거실</h2>
+          </div>
+          <div class="env-header-right">
+            <span id="txt-window-temp" class="env-temp-big">--°C</span>
+            <span id="txt-window-humi" class="env-humi-sub">습도 --%</span>
+          </div>
+        </section>
+
+        <!-- 2. 현재 모드 카드 -->
+        <section class="card current-mode-card">
+          <div class="mode-card-left">
+            <span class="mode-card-label">현재 제어 모드</span>
+            <h3 id="txt-window-mode-desc" class="mode-card-title">자동 환기 모드</h3>
+          </div>
+          <span id="badge-window-mode" class="badge-active-pill">자동</span>
+        </section>
+
+        <!-- 3. 열기 프리셋 -->
+        <section class="preset-section">
+          <h2 class="section-title">창문 열림 정도</h2>
+          <div class="preset-grid">
+            <button class="preset-card btn-control" data-cmd="14">
+              <div class="preset-image-placeholder text-teal">
+                <span class="material-symbols-outlined">window</span>
+              </div>
+              <span class="preset-label">25% 열기</span>
+            </button>
+            <button class="preset-card btn-control" data-cmd="11">
+              <div class="preset-image-placeholder text-teal">
+                <span class="material-symbols-outlined">window</span>
+              </div>
+              <span class="preset-label">50% 열기</span>
+            </button>
+            <button class="preset-card btn-control" data-cmd="15">
+              <div class="preset-image-placeholder text-teal">
+                <span class="material-symbols-outlined">window</span>
+              </div>
+              <span class="preset-label">75% 열기</span>
+            </button>
+            <button class="preset-card btn-control" data-cmd="10">
+              <div class="preset-image-placeholder text-teal">
+                <span class="material-symbols-outlined">window</span>
+              </div>
+              <span class="preset-label">100% 열기</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- 4. 상세 제어 슬라이더 (Granular Control) -->
+        <section class="card detailed-control-card">
+          <div class="slider-header-row">
+            <h3 class="slider-card-title">상세 각도 조절</h3>
+            <span class="slider-percentage-badge badge-teal"><strong id="txt-slider-val">90</strong>°</span>
+          </div>
+          <div class="range-slider-wrapper">
+            <input type="range" id="window-slider" min="90" max="180" value="90" class="custom-range-slider range-slider-teal">
+          </div>
+          <div class="slider-labels-row">
+            <span>닫힘 (90°)</span>
+            <span id="txt-window-pct">0%</span>
+            <span>전체 열림 (180°)</span>
+          </div>
+        </section>
+
+        <!-- 5. 가상 창문 동작 그래픽 뷰어 -->
+        <section class="card window-viewer-card">
+          <h3 class="slider-card-title mb-4">창문 개방 애니메이션</h3>
+          <div class="window-preview-wrapper-custom">
+            <div class="window-frame">
+              <div class="window-glass" id="window-glass">
+                <span class="glass-grid"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. 공기 질 상태 카드 -->
+        <section class="card air-status-card">
+          <div class="air-card-layout">
+            <div class="air-icon-circle bg-teal-light text-teal">
+              <span class="material-symbols-outlined">cloud</span>
+            </div>
+            <div class="air-text-group">
+              <h4 class="air-card-title">공기 질 쾌적도</h4>
+              <p id="badge-air" class="air-card-desc">대기 중</p>
+            </div>
+          </div>
+          <span class="material-symbols-outlined chevron-icon">chevron_right</span>
+        </section>
+      </main>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 3: LIGHT DETAIL (Circular Dimmer)
+         ========================================== -->
+    <div id="screen-light" class="app-screen">
+      <!-- 헤더 -->
+      <header class="app-header">
+        <button class="icon-btn-header" data-nav="home">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 class="header-title">조명 제어</h1>
+        <button class="icon-btn-header" data-nav="settings">
+          <span class="material-symbols-outlined">settings</span>
+        </button>
+      </header>
+
+      <main class="screen-main flex-center-content">
+        <!-- 1. 원형 밝기 표시기 (Circular Brightness Gauge) -->
+        <div class="brightness-radial-wrapper">
+          <div class="brightness-radial-ring">
+            <svg viewBox="0 0 100 100" class="radial-ring-svg">
+              <defs>
+                <linearGradient id="amber-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#FCD34D" />
+                  <stop offset="100%" stop-color="#F59E0B" />
+                </linearGradient>
+              </defs>
+              <circle class="radial-ring-bg" cx="50" cy="50" r="44" />
+              <circle id="brightness-ring-fill" class="radial-ring-fill" cx="50" cy="50" r="44" stroke-dasharray="0, 276.4" stroke="url(#amber-gradient)" />
+            </svg>
+            <div class="brightness-radial-content">
+              <div class="bulb-icon-glow" id="radial-bulb-glow">
+                <span class="material-symbols-outlined">lightbulb</span>
+              </div>
+              <span id="txt-brightness-val" class="radial-percentage-text">--%</span>
+              <span class="radial-label-text">밝기</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 밝기 조절 상세 카드 -->
+        <section class="card detailed-control-card w-full">
+          <div class="slider-header-row">
+            <h3 class="slider-card-title">밝기 조절</h3>
+            <span id="badge-light-mode" class="slider-percentage-badge badge-yellow">대기 중</span>
+          </div>
+          
+          <div class="range-slider-wrapper">
+            <input type="range" id="light-brightness-slider" min="0" max="100" value="0" class="custom-range-slider range-slider-amber">
+          </div>
+          
+          <div class="slider-labels-row">
+            <span>0% (소등)</span>
+            <span id="txt-rgb-state">꺼짐</span>
+            <span>100% (점등)</span>
+          </div>
+        </section>
+
+        <!-- 3. 프리셋 선택 칩스 -->
+        <section class="preset-chips-section w-full">
+          <div class="chips-row">
+            <button class="preset-chip-btn" data-light-preset="25">25%</button>
+            <button class="preset-chip-btn" data-light-preset="50">50%</button>
+            <button class="preset-chip-btn active" data-light-preset="75">75%</button>
+            <button class="preset-chip-btn" data-light-preset="100">100%</button>
+          </div>
+        </section>
+
+        <!-- 4. 수동 조명 오버라이드 및 가상 전구 -->
+        <section class="card dev-light-card w-full">
+          <div class="group-header">
+            <h3 class="group-title">수동 전원 제어</h3>
+          </div>
+          <div class="action-buttons mt-3">
+            <button class="btn-action btn-on" data-cmd="7">
+              <span class="icon">💡</span> 조명 켜기
+            </button>
+            <button class="btn-action btn-off" data-cmd="8">
+              <span class="icon">🔌</span> 조명 끄기
+            </button>
+          </div>
+          
+          <!-- 가상 전구 뷰어 (RGB) -->
+          <div class="rgb-preview-wrapper mt-4">
+            <div class="rgb-bulb" id="rgb-bulb"></div>
+            <span class="rgb-label">RGB 전구 상태: <strong id="txt-rgb-state-dev">꺼짐</strong></span>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 4: SETTINGS & DEV TOOLS
+         ========================================== -->
+    <div id="screen-settings" class="app-screen">
+      <!-- 헤더 -->
+      <header class="app-header">
+        <button class="icon-btn-header" data-nav="home">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 class="header-title">시스템 설정</h1>
+        <div style="width: 40px;"></div> <!-- Spacer -->
+      </header>
+
+      <main class="screen-main">
+        <!-- 1. 블루투스 연결 관리 -->
+        <section class="card settings-group-card">
+          <h2 class="card-title">📶 블루투스 연결 설정</h2>
+          
+          <div class="connection-control-row">
+            <div id="conn-status" class="status-badge disconnected">
+              <span class="badge-dot"></span>
+              <span class="badge-text">연결 안 됨</span>
+            </div>
+            <button id="btn-connect" class="btn-primary">
+              <span class="material-symbols-outlined btn-icon">bluetooth</span>
+              <span class="btn-text">블루투스 연결</span>
+            </button>
+          </div>
+
+          <div class="simulator-control-row mt-4">
+            <label class="switch-label" for="sim-toggle">기능 둘러보기</label>
+            <label class="switch">
+              <input type="checkbox" id="sim-toggle">
+              <span class="slider-round"></span>
+            </label>
+          </div>
+        </section>
+
+
+
+
+
+        <!-- 4. 시스템 모드 리셋 설정 -->
+        <section class="card settings-group-card">
+          <h2 class="card-title">⚙️ 시스템 모드 리셋</h2>
+
+          <div class="control-group border-none mt-3">
+            <div class="mode-reset-list">
+              <button class="btn-mode-reset btn-mode-auto" data-cmd="0">
+                <span>🔄 자동 모드</span>
+              </button>
+              <button class="btn-mode-reset btn-mode-manual" data-cmd="1">
+                <span>🔧 수동 모드</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. 스마트홈 센서 상세 모니터링 (원시 데이터) -->
+        <section class="card settings-group-card">
+          <h2 class="card-title">📊 실시간 센서 원시 데이터</h2>
+          <div class="env-status-list mt-3">
+            <!-- 조도 센서 -->
+            <div class="status-item flex-column align-stretch">
+              <div class="status-item-row">
+                <span class="item-label">조도 (CdS)</span>
+                <div class="item-value-group">
+                  <span class="material-symbols-outlined" id="icon-light" style="font-size: 18px; color: var(--text-sub);">lightbulb</span>
+                  <span id="txt-cds">--</span> <span class="unit">Lux</span>
+                </div>
+              </div>
+              <div class="light-bar-wrapper">
+                <div class="light-bar-fill" id="light-bar-fill" style="width: 0%"></div>
+              </div>
+            </div>
+            <!-- 인체 감지 -->
+            <div class="status-item">
+              <span class="item-label">인체 감지 (PIR)</span>
+              <span id="badge-pir" class="badge bg-gray">미감지</span>
+            </div>
+            <!-- 빗물 감지 -->
+            <div class="status-item">
+              <span class="item-label">우천 상태</span>
+              <span id="badge-rain" class="badge bg-gray">맑음</span>
+            </div>
+          </div>
+        </section>
+
+
+      </main>
+    </div>
+
+    <!-- ==========================================
+         SCREEN 5: SOUND DETAIL (Volume & Melody)
+         ========================================== -->
+    <div id="screen-sound" class="app-screen">
+      <!-- 헤더 -->
+      <header class="app-header">
+        <button class="icon-btn-header" data-nav="home">
+          <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 class="header-title">음향 제어</h1>
+        <button class="icon-btn-header" data-nav="settings">
+          <span class="material-symbols-outlined">settings</span>
+        </button>
+      </header>
+
+      <main class="screen-main flex-center-content">
+        <!-- 1. 원형 음량 표시기 (Circular Volume Gauge) -->
+        <div class="brightness-radial-wrapper">
+          <div class="brightness-radial-ring active" id="volume-radial-ring">
+            <svg viewBox="0 0 100 100" class="radial-ring-svg">
+              <defs>
+                <linearGradient id="mint-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#2DD4BF" />
+                  <stop offset="100%" stop-color="#0D9488" />
+                </linearGradient>
+              </defs>
+              <circle class="radial-ring-bg" cx="50" cy="50" r="44" />
+              <circle id="volume-ring-fill" class="radial-ring-fill" cx="50" cy="50" r="44" stroke-dasharray="276.4, 276.4" stroke="url(#mint-gradient)" />
+            </svg>
+            <div class="brightness-radial-content">
+              <div class="bulb-icon-glow active" id="radial-volume-glow">
+                <span class="material-symbols-outlined" id="radial-volume-icon">volume_up</span>
+              </div>
+              <span id="txt-volume-val" class="radial-percentage-text">100%</span>
+              <span class="radial-label-text">음량</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 음량 조절 상세 카드 -->
+        <section class="card detailed-control-card w-full">
+          <div class="slider-header-row">
+            <h3 class="slider-card-title">음량 조절</h3>
+            <span id="badge-sound-mode" class="slider-percentage-badge badge-teal">소리 켜짐</span>
+          </div>
+          
+          <div class="range-slider-wrapper">
+            <input type="range" id="vol-slider" min="0" max="100" value="100" class="custom-range-slider range-slider-teal">
+          </div>
+          
+          <div class="slider-labels-row">
+            <span>무음 (0%)</span>
+            <span>최대 (100%)</span>
+          </div>
+        </section>
+
+        <!-- 3. 수동 음향 제어 (멜로디 On/Off) -->
+        <section class="card dev-light-card w-full">
+          <div class="group-header">
+            <h3 class="group-title">패시브 부저 멜로디</h3>
+          </div>
+          <div class="action-buttons mt-3">
+            <button class="btn-action btn-on" data-cmd="20">
+              <span class="icon">🔊</span> 소리 켜기
+            </button>
+            <button class="btn-action btn-off" data-cmd="21">
+              <span class="icon">🔇</span> 소리 끄기
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- ==========================================
+         PERSISTENT BOTTOM NAVIGATION BAR
+         ========================================== -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-tab="home">
+        <span class="material-symbols-outlined">home</span>
+      </button>
+      <button class="nav-item" data-tab="window">
+        <span class="material-symbols-outlined">grid_view</span>
+      </button>
+      <button class="nav-item" data-tab="light">
+        <span class="material-symbols-outlined">lightbulb</span>
+      </button>
+      <button class="nav-item" data-tab="settings">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script src="app.js?v=2"></script>
+</body>
+</html>
